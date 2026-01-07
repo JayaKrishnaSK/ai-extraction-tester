@@ -1,0 +1,149 @@
+# Example: Invoice Extraction Test Configuration
+# This demonstrates a real-world use case for testing invoice extraction services
+
+version: "1.0.0"
+
+suite:
+  name: "Invoice Extraction Regression v1.2"
+  description: "Validate invoice fields extraction against ground truth"
+  serviceVersion: "v1.2.0"
+
+# Authentication configuration
+auth:
+  type: "bearer"
+  tokenEnv: "EXTRACTION_API_TOKEN"
+
+# Default rules applied to all cases (can be overridden per case)
+defaults:
+  comparison:
+    # Fields to ignore in comparison (volatile or non-essential)
+    ignoreFields:
+      - "meta.timestamp"       # Processing timestamp
+      - "meta.processingTimeMs" # Processing duration
+      - "meta.documentHash"    # Document fingerprint (changes per execution)
+      - "confidence"           # Model confidence scores (may vary)
+    
+    # Array comparison strategy
+    arrayStrategy: "unordered" # Line items order doesn't matter
+    
+    # Tolerance for numeric comparisons (handles floating point)
+    numericTolerance: 0.01     # Allow 0.01 difference in amounts
+    
+    # Allow type coercion ("100" === 100)
+    typeCoercion: true
+    
+    # Flag extra fields in output
+    extraFieldsWarning: true
+
+  # Scoring configuration
+  scoring:
+    missingFieldPenalty: 10    # Each missing field costs 10 points
+    mismatchPenalty: 5         # Each mismatched field costs 5 points
+    extraFieldPenalty: 2       # Each extra field costs 2 points
+
+# Concurrency and performance settings
+concurrency:
+  maxParallel: 3              # Run max 3 test cases in parallel
+  delayBetweenRequests: 500   # Wait 500ms between API calls (to avoid rate limiting)
+
+# Test cases
+cases:
+  # Test Case 1: Simple invoice with basic fields
+  - id: "invoice-001-simple"
+    description: "Simple invoice with vendor, amount, date"
+    
+    input:
+      type: "file"
+      path: "./samples/invoice-simple.pdf"
+    
+    groundTruth:
+      type: "json"
+      source: "./ground-truth/invoice-001.json"
+    
+    execution:
+      type: "api"
+      endpoint: "https://api.extraction.example.com/v1/extract/invoice"
+      method: "POST"
+
+  # Test Case 2: Complex invoice with line items and discounts
+  - id: "invoice-002-complex"
+    description: "Complex invoice with multiple line items, taxes, and discounts"
+    
+    input:
+      type: "file"
+      path: "./samples/invoice-complex.pdf"
+    
+    groundTruth:
+      type: "json"
+      source: "./ground-truth/invoice-002.json"
+    
+    execution:
+      type: "api"
+      endpoint: "https://api.extraction.example.com/v1/extract/invoice"
+      method: "POST"
+    
+    # Case-specific overrides
+    comparison:
+      # For this case, order of line items matters
+      arrayStrategy: "ordered"
+    
+    scoring:
+      # Line items are critical, so higher penalty for mismatches
+      mismatchPenalty: 10
+
+  # Test Case 3: Invoice with multiple pages
+  - id: "invoice-003-multipage"
+    description: "Multi-page invoice with summary on first page and details on subsequent pages"
+    
+    input:
+      type: "file"
+      path: "./samples/invoice-multipage.pdf"
+    
+    groundTruth:
+      type: "json"
+      source: "./ground-truth/invoice-003.json"
+    
+    execution:
+      type: "api"
+      endpoint: "https://api.extraction.example.com/v1/extract/invoice"
+      method: "POST"
+
+  # Test Case 4: Invoice from different vendor with different structure
+  - id: "invoice-004-vendor-b"
+    description: "Invoice from alternative vendor with different layout"
+    
+    input:
+      type: "file"
+      path: "./samples/invoice-vendor-b.pdf"
+    
+    groundTruth:
+      type: "json"
+      source: "./ground-truth/invoice-004.json"
+    
+    execution:
+      type: "api"
+      endpoint: "https://api.extraction.example.com/v1/extract/invoice"
+      method: "POST"
+
+  # Test Case 5: Invoice with edge cases (special characters, multiple currencies)
+  - id: "invoice-005-edge-cases"
+    description: "Invoice with special characters and multiple currencies"
+    
+    input:
+      type: "file"
+      path: "./samples/invoice-edge-cases.pdf"
+    
+    groundTruth:
+      type: "json"
+      source: "./ground-truth/invoice-005.json"
+    
+    execution:
+      type: "api"
+      endpoint: "https://api.extraction.example.com/v1/extract/invoice"
+      method: "POST"
+    
+    comparison:
+      # Be more lenient with special characters
+      ignoreFields:
+        - "meta.*"
+        - "vendor.specialChars"
